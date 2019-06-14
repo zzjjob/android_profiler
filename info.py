@@ -28,8 +28,9 @@ class Info(object):
 
 class CPUInfo(Info):
     TIME = "time"
-    CPU_RATE = "CPU Rate(%)"
+    PID_JIFFIES = "PID Jiffies"
     JIFFIES = "Jiffies"
+    CPU_RATE = "CPU Rate(%)"
 
     def __init__(self):
         super().__init__()
@@ -39,8 +40,7 @@ class CPUInfo(Info):
     def get_cpu_usage(self):
         cpu_usage = 0.0
         result = self.get_cpu_action()
-        # print(result)
-        for i in range(2, len(result)):
+        for i in range(1, len(result)):
             cpu_usage += float(result[i])
         return cpu_usage
 
@@ -70,7 +70,7 @@ class CPUInfo(Info):
     def get_cpu_info(self):
         dirs = self.task.output + "/cpu_stats/"
         file_name = "cpu_" + self.task.device + "_" + self.task.applicationid + "_" + self.task.version_name + "_" + self.task.name
-        field_names = [self.TIME, self.CPU_RATE, self.JIFFIES]
+        field_names = [self.TIME, self.PID_JIFFIES, self.JIFFIES, self.CPU_RATE]
         writer = utils.get_csv_writer(dirs, file_name, field_names)
         cpu_jiffies = self.get_cpu_usage()
         pid_jiffies = self.get_process_cpu_usage()
@@ -91,12 +91,19 @@ class CPUInfo(Info):
             jiffies = start_p_cpu
             writer.writerow(
                 {self.TIME: self.get_index(),
-                 self.CPU_RATE: format(cpu_rate, ".2f"), self.JIFFIES: jiffies})
+                 self.PID_JIFFIES: end_p_cpu - start_p_cpu, self.JIFFIES: end_all_cpu - start_all_cpu,
+                 self.CPU_RATE: format(cpu_rate, ".2f")})
+            print('%d, %d' %(end_all_cpu, start_all_cpu));
+            print('PID Jiffies %ld, jiffies %ld, %f' %(end_p_cpu - start_p_cpu, end_all_cpu - start_all_cpu, cpu_rate))
             self.count += 1
         cpu_jiffies = self.get_cpu_usage() - cpu_jiffies
         pid_jiffies = self.get_process_cpu_usage() - pid_jiffies
         rate = pid_jiffies * 100.0 / cpu_jiffies
-        print('cpu_jiffies %d, pid_jiffies %d, %f %' %(cpu_jiffies, pid_jiffies, rate))
+        writer.writerow(
+                {self.TIME: self.get_index(),
+                 self.PID_JIFFIES: pid_jiffies, self.JIFFIES: cpu_jiffies,
+                 self.CPU_RATE: rate})
+        print('Total PID Jiffies %ld, jiffies %ld, %f' %(pid_jiffies, cpu_jiffies, rate))
 
 
 class MemInfo(Info):
@@ -162,28 +169,34 @@ class FPSInfo(Info):
         self.is_running = False
 
     def get_fps_info(self):
-        command = "dumpsys gfxinfo " + self.task.pid + " | grep 'Total frames'"
+        command = "dumpsys gfxinfo " + self.task.pid + " reset | grep -E 'Total frames|Janky frames'"
         dirs = self.task.output + "/fps_stats/"
         file_name = "fps_" + self.task.device + "_" + self.task.applicationid + "_" + self.task.version_name + "_" + self.task.name
         field_names = [self.TIME, self.FPS]
         writer = utils.get_csv_writer(dirs, file_name, field_names)
         while self.is_running:
-            if self.is_first:
-                self.last_time = time.time_ns()
-                self.last_fps = int(re.findall("\d+", self.task.d.adb_shell(command))[0])
-                self.is_first = False
-                continue
+            result = self.task.d.adb_shell(command)
+            print(result)
+            total_frames = int(re.findall("\d+", result)[0])
+            janky_frames = int(re.findall("\d+", result)[1])
+            print(total_frames)
+            print(janky_frames)
+            # if self.is_first:
+            #     self.last_time = time.time_ns()
+            #     self.last_fps = int(re.findall("\d+", self.task.d.adb_shell(command))[0])
+            #     self.is_first = False
+            #     continue
 
-            current_time = time.time_ns()
-            current_fps = int(re.findall("\d+", self.task.d.adb_shell(command))[0])
-            time_delta = (current_time - self.last_time) / 1000000000.0
-            fps_delta = current_fps - self.last_fps
-            fps = fps_delta / time_delta
-            print('current_frames=%d, last_frames=%d, + %d, current_fps=%d' % (current_fps, self.last_fps, fps_delta, fps))
-            self.last_time = current_time
-            self.last_fps = current_fps
-            writer.writerow({self.TIME: self.get_index(), self.FPS: "{:.2f}".format(fps)})
-            self.count += 1
+            # current_time = time.time_ns()
+            # current_fps = int(re.findall("\d+", self.task.d.adb_shell(command))[0])
+            # time_delta = (current_time - self.last_time) / 1000000000.0
+            # fps_delta = current_fps - self.last_fps
+            # fps = fps_delta / time_delta
+            # print('current_frames=%d, last_frames=%d, + %d, current_fps=%d' % (current_fps, self.last_fps, fps_delta, fps))
+            # self.last_time = current_time
+            # self.last_fps = current_fps
+            # writer.writerow({self.TIME: self.get_index(), self.FPS: "{:.2f}".format(fps)})
+            # self.count += 1
             time.sleep(self.task.interval)
 
 
