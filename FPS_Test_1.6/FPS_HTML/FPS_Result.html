@@ -1,0 +1,399 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<link rel="stylesheet" type="text/css" href="head/style.css" />
+<script type="text/javascript" src="head/jquery.min_1.8.2.js"></script>
+<script type="text/javascript" src="head/highcharts4.2.1.js"></script>
+<script type="text/javascript" src="head/theme.js"></script>
+<script type="text/javascript" src="head/data.js"></script>
+</head>
+
+<script>
+
+var color='#FFF',color_t='#FF0';
+
+window.onscroll=function(){ 
+	var t=document.documentElement.scrollTop||document.body.scrollTop;
+	var div2=document.getElementById("div2");
+	if(t>=50){ 
+		div2.className="div2_1";
+	}else{
+		div2.className="div2";
+	} 
+}
+
+var chart_FPS=null;
+function FPS(Masterdata) {
+	if(chart_FPS != null){chart_FPS.destroy()}
+	chart_FPS=new Highcharts.Chart({
+		chart: {
+			renderTo: 'FPS',
+			type: 'line'
+		},
+		title: {
+			text: 'FPS走势图'
+		},
+		credits: {
+			enabled: false
+		},
+		xAxis: {
+			title: {text: 'uptime(s)'},
+			floor: FPS_chart_min,
+			max: FPS_chart_max
+		},
+		yAxis: [
+			{labels: {format: '{value}帧/秒'},title: {text:'FPS'}},
+			{labels: {format: '{value}%'},title: {text:'百分比(%)'},opposite: true}
+		],
+		legend: {
+			layout: 'vertical',
+			align: 'right',
+			verticalAlign: 'top',
+			x: 0,
+			y: 40
+		},
+		plotOptions: {
+			line:{turboThreshold:0}
+		},
+		tooltip: {
+			shared: true,
+			crosshairs: true,
+			useHTML: true,
+			formatter: function () {
+				var pdata=getdata('point',this.x);
+				var s='<small>Window: ' + t_window + 's</small><table>';
+				$.each(this.points, function () {
+					s += '<tr><td style="word-break:keep-all; color: ' + this.series.color + '"><span>' + this.series.name + ':</span></td><td style="text-align: right; color: '+ color + '"><b>' + this.y + '</b></td></tr>';
+				});
+				s += '<tr><td style="word-break:keep-all; color: ' + color_t + '">MFS(ms):</td><td style="text-align: right; color: '+ color + '"><b>' + pdata[5] + '</b></td></tr>' +
+					 '<tr><td style="word-break:keep-all; color: ' + color_t + '">OKT:</td><td style="text-align: right; color: '+ color + '"><b>' + pdata[6] + '</b></td></tr>' +
+					 '<tr><td style="word-break:keep-all; color: ' + color_t + '">Frames:</td><td style="text-align: right; color: '+ color + '"><b>' + pdata[3] + '</b></td></tr>' +
+					 '<tr><td style="word-break:keep-all; color: ' + color_t + '">jank:</td><td style="text-align: right; color: '+ color + '"><b>' + pdata[4] + '</b></td></tr>' +
+					 '<tr><td style="word-break:keep-all; color: ' + color_t + '">FU(s):</td><td style="text-align: right; color: '+ color + '"><b>' + pdata[0] + '</b></td></tr>' +
+					 '<tr><td style="word-break:keep-all; color: ' + color_t + '">LU(s):</td><td style="text-align: right; color: '+ color + '"><b>' + pdata[1] + '</b></td></tr>' +
+					 '<tr><td style="word-break:keep-all; color: ' + color_t + '">Date_Time:</td><td style="text-align: right; color: '+ color + '"><b>' + pdata[2].replace(' ', '_') + '</b></td></tr></table>';
+				return s;
+			}
+		},
+		series: [{name: 'FPS',data: Masterdata[0]},{name: '超KPI的帧数比例(%)',data: Masterdata[1],yAxis: 1},{name: '流畅度得分(%)',data: Masterdata[2],yAxis: 1}],
+		exporting: {enabled: false}
+	});
+}
+
+var chart_FPSMaster=null,detailData=getdata('line',1),FPS_data_all=getdata('line',0);
+function FPSMaster() {
+	if(chart_FPSMaster != null){chart_FPSMaster.destroy()}
+	chart_FPSMaster=new Highcharts.Chart({
+		chart: {
+			renderTo: 'FPSMaster',
+			type: 'line',
+			zoomType: 'x',
+			events: {
+				selection: function (event) {
+					var extremesObject = event.xAxis[0],min = extremesObject.min,max = extremesObject.max,xAxis = this.xAxis[0];
+					FPS_chart_min=min;
+					FPS_chart_max=max;
+					detailData=[];
+					var detail0=[],detail1=[],detail2=[],check=0,tmp=0;
+					// reverse engineer the last part of the data
+					var L0=this.series[0].data;
+					var L1=this.series[1].data;
+					var L2=this.series[2].data;
+					console.log(this.series[0].data);
+					for (var i = 0; i < L0.length; i++){
+						var tmp2=L0[i].x-tmp
+						if (L0[i].x > min && L0[i].x < max) {
+							check+=1
+							var cpoint=getdata('point',L0[i].x);
+							if (check > 1 && L0[i].x == cpoint[0] && tmp != 0 && tmp2 >= 0.5) {
+								detail0.push(null);
+								detail1.push(null);
+								detail2.push(null);
+							}
+							detail0.push([L0[i].x, L0[i].y]);
+							detail1.push([L0[i].x, L1[i].y]);
+							detail2.push([L0[i].x, L2[i].y]);
+						}
+						tmp=L0[i].x;
+					};
+					detailData.push(detail0,detail1,detail2)
+					// move the plot bands to reflect the new detail span
+					xAxis.removePlotBand('FPSMaster-before');
+					xAxis.addPlotBand({
+						id: 'FPSMaster-before',
+						from: x_min,
+						to: min,
+						color: 'rgba(0, 0, 0, 0.2)'
+					});
+					xAxis.removePlotBand('FPSMaster-after');
+					xAxis.addPlotBand({
+						id: 'FPSMaster-after',
+						from: max,
+						to: x_max,
+						color: 'rgba(0, 0, 0, 0.2)'
+					});
+					FPS(detailData);
+					return false;
+				}
+			}
+		},
+		title: {text: null},
+		credits: {enabled: false},
+		xAxis: {
+			title: {text: null},
+			min: x_min,
+			showLastTickLabel: true,
+			plotBands: [{
+			id: 'FPSMaster-before',
+				from: x_min,
+				to: FPS_chart_min,
+				color: 'rgba(0, 0, 0, 0.2)'
+			},{
+			id: 'FPSMaster-after',
+				from: FPS_chart_max,
+				to: x_max,
+				color: 'rgba(0, 0, 0, 0.2)'
+			}],
+		},
+		yAxis: {
+			gridLineWidth: 0,
+			labels: {enabled: false},
+			title: {text: null},
+			showFirstLabel: false
+		},
+		legend: {enabled: false},
+		plotOptions: {
+			series: {
+				fillColor: {
+					linearGradient: [0, 0, 0, 70],
+					stops: [[0, Highcharts.getOptions().colors[0]],[1, 'rgba(255,255,255,0)']]
+				},
+				lineWidth: 1,
+				marker: {
+					enabled: false
+				},
+				shadow: false,
+				states: {
+					hover: {
+						lineWidth: 1
+					}
+				},
+				enableMouseTracking: false
+			},
+			line:{turboThreshold:0}
+		},
+		tooltip: {formatter: function () {return false;}},
+		series: [{name: 'FPS',data: FPS_data_all[0]},{name: '超KPI的帧数比例',data: FPS_data_all[1]},{name: '流畅度得分',data: FPS_data_all[2]}],
+		exporting: {enabled: false}
+	});
+	FPS(detailData);
+}
+
+var chart_time=null;
+function T_time(T_data) {
+	if(chart_time != null){chart_time.destroy()}
+	chart_time=new Highcharts.Chart({
+		chart: {
+			renderTo: 'T_time',
+			type: 'line'
+		},
+		title: {
+			text: '响应时间走势图'
+		},
+		credits: {
+			enabled: false
+		},
+		xAxis: {
+			title: {text: '次数'},
+			min: time_chart_min,
+			max: time_chart_max
+		},
+		yAxis: {
+			title: {text: '时长(秒)'},
+			floor: T_min
+		},
+		legend: {
+			layout: 'vertical',
+			align: 'right',
+			verticalAlign: 'top',
+			x: 0,
+			y: 40
+		},
+		plotOptions: {
+			line:{turboThreshold:0}
+		},
+		tooltip: {
+			shared: true,
+			crosshairs: true,
+			useHTML: true,
+			formatter: function () {
+				var pdata=getdata('point',this.x);
+				var s='<small>' + this.x + 's</small><table>';
+				$.each(this.points, function () {
+					s += '<tr><td style="word-break:keep-all; color: ' + this.series.color + '"><span>' + this.series.name + ':</span></td><td style="text-align: right; color: '+ color + '"><b>' + this.y + 'S</b></td></tr>';
+				});
+				s += '<tr><td style="word-break:keep-all; color: ' + color_t + '">最小值:</td><td style="text-align: right; color: '+ color + '"><b>' + T_min + 'S</b></td></tr>' +
+					 '<tr><td style="word-break:keep-all; color: ' + color_t + '">最大值:</td><td style="text-align: right; color: '+ color + '"><b>' + T_max + 'S</b></td></tr></table>';
+				return s;
+			}
+		},
+		series: [{name: '单次操作时长',data: T_data}],
+		exporting: {enabled: false}
+	});
+}
+
+var chart_time_Master=null,time_chart_min=min=1,time_chart_max,time_chart_data=[];
+if(T_max >= 10){time_chart_max=10}else{time_chart_max=T_max};
+for (var i = 0; i < time_chart_max; i++){time_chart_data.push(T_ms[i])}
+function T_timeMaster() {
+	if(chart_time_Master != null){chart_time_Master.destroy()}
+	chart_time_Master=new Highcharts.Chart({
+		chart: {
+			renderTo: 'T_time_Master',
+			type: 'line',
+			reflow: false,
+			zoomType: 'x',
+			events: {
+				selection: function (event) {
+					var extremesObject = event.xAxis[0],min = extremesObject.min,max = extremesObject.max,xAxis = this.xAxis[0],T_detailData=[];
+					time_chart_min=min;
+					time_chart_max=max;
+					time_chart_data=[]
+					$.each(this.series[0].data, function () {
+						if (this.x > min && this.x < max) {
+							time_chart_data.push([this.x, this.y]);
+						}
+					});
+					xAxis.removePlotBand('time_Master-before');
+					xAxis.addPlotBand({
+						id: 'time_Master-before',
+						from: 1,
+						to: min,
+						color: 'rgba(0, 0, 0, 0.2)'
+					});
+					xAxis.removePlotBand('FPSMaster-after');
+					xAxis.addPlotBand({
+						id: 'FPSMaster-after',
+						from: max,
+						to: T_ms.length+1,
+						color: 'rgba(0, 0, 0, 0.2)'
+					});
+					T_time(time_chart_data);
+					return false;
+				}
+			}
+		},
+		title: {text: null},
+		credits: {enabled: false},
+		xAxis: {
+			title: {text: null},
+			min: 1,
+			showLastTickLabel: true,
+			plotBands: [{
+			id: 'FPSMaster-before',
+				from: 1,
+				to: time_chart_min,
+				color: 'rgba(0, 0, 0, 0.2)'
+			}],
+			plotBands: [{
+			id: 'FPSMaster-after',
+				from: time_chart_max,
+				to: T_ms.length+1,
+				color: 'rgba(0, 0, 0, 0.2)'
+			}],
+		},
+		yAxis: {
+			gridLineWidth: 0,
+			labels: {enabled: false},
+			title: {text: null},
+			showFirstLabel: false
+		},
+		legend: {enabled: false},
+		plotOptions: {
+			series: {
+				fillColor: {
+					linearGradient: [0, 0, 0, 70],
+					stops: [[0, Highcharts.getOptions().colors[0]],[1, 'rgba(255,255,255,0)']]
+				},
+				lineWidth: 1,
+				marker: {
+					enabled: false
+				},
+				shadow: false,
+				states: {
+					hover: {
+						lineWidth: 1
+					}
+				},
+				enableMouseTracking: false
+			},
+			line:{turboThreshold:0}
+		},
+		tooltip: {formatter: function () {return false;}},
+		series: [{name: '单次操作时长',data: T_ms}],
+		exporting: {enabled: false}
+	});
+	T_time(time_chart_data);
+}
+
+$(document).ready(function() {
+	Highcharts.setOptions(themeArr[4]);
+	FPSMaster();
+	T_timeMaster();
+})
+
+//Highcharts设置到默认皮肤
+function ResetOptions() {
+	//删除所有属性 然后在给予默认皮肤
+	var defaultOptions = Highcharts.getOptions();
+	for (var prop in defaultOptions) {
+		if (typeof defaultOptions[prop] !== 'function') delete defaultOptions[prop];
+	}
+}
+
+function ChangeThemes(option) {
+	var background_img;
+	ResetOptions();
+	Highcharts.setOptions(themeArr[0]);
+	if (option.value == "6"||option.value == "8" ){document.bgColor = '#FFFFFF'}else{document.bgColor = '#DCDCDC'}
+	if (option.value == "1"||option.value == "2"||option.value == "3"||option.value == "4"){color='#FFF'}else{color='#333333'}
+	if (option.value == "7" ) {
+		background_img='url(http://www.highcharts.com/samples/graphics/sand.png)'
+	}else{
+		background_img=null
+	}
+	Highcharts.wrap(Highcharts.Chart.prototype, 'getContainer', function (proceed) {
+		proceed.call(this);
+		this.container.style.background=background_img
+	});
+	Highcharts.setOptions(themeArr[option.value]);
+	FPSMaster();
+	T_timeMaster();
+}
+</script>
+
+<body bgColor="#DCDCDC">
+<div class="div1">
+	<div id="div2" class="div2">
+		<div class="div3">
+			选择主题：
+			<select id="theme_select" onchange="ChangeThemes(this)">
+				<option value="0">默认</option>
+				<option value="1">深蓝 (dark-blue)</option>
+				<option value="2">深绿 (dark-green)</option>
+				<option value="3">dark-unica</option>
+				<option value="4" selected>灰色(gray)</option>
+				<option value="5">网格(grid)</option>
+				<option value="6">grid-light</option>
+				<option value="7">sand-signika</option>
+				<option value="8">天空(skies)</option>
+			</select>
+		</div>
+	</div>
+	<div id="FPS" class="div4"></div>
+	<div id="FPSMaster" class="div5"></div>
+	<div id="T_time" class="div4"></div>
+	<div id="T_time_Master" class="div5"></div>
+</div>
+</body>
+</html>

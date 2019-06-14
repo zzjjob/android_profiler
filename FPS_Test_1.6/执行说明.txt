@@ -1,0 +1,50 @@
+Push文件：
+
+adb push busybox /data/local/tmp
+adb shell chmod 755 /data/local/tmp/busybox
+adb push E:\OneDrive\性能测试\FPS_Test\fps.sh /data/local/tmp
+
+执行：
+
+adb shell
+sh /data/local/tmp/fps.sh 参数
+参数说明：
+-t或--target         +目标FPS，默认值=60
+-w或--window         +取数据的窗口名，默认：无窗口名只能取窗口变换阶段数据
+-k或--KPI            +单帧渲染时间KPI， 默认值=KPI=1000/目标FPS
+-f或--file           +目标文件名，默认输出到控制台窗口
+-h或--help           显示帮助信息
+
+
+csv转换为图示：
+
+1、使用-f参数保存文件后，pull此文件到PC
+2、将此文件拖拽到FPStoHTML.exe生成同名文件夹结果
+	linx使用功能python FPStoHTML.py csv完整路径
+
+
+
+使用方式实例：
+
+1、按照25帧标准，后台监控长时间播放，保存文件到/sdcard/check.csv
+sh /data/local/tmp/fps.sh -t 25 -w SurfaceView -f /sdcard/check.csv
+
+2、按照60帧标准监控桌面，实时显示数据在窗口上
+sh /data/local/tmp/fps.sh -t 25 -w com.android.launcher3/com.android.launcher3.Launcher
+
+注：后面的launcher窗口名是乐视手机项目的，查看当前显示的窗口名使用：
+adb shell
+dumpsys SurfaceFlinger|grep "|....|"
+
+最后name列就是窗口名称
+| name
+| com.android.systemui.ImageWallpaper
+| com.android.launcher3/com.android.launcher3.Launcher
+| StatusBar
+| HWC_FRAMEBUFFER_TARGET
+
+com.android.systemui.ImageWallpaper=壁纸
+com.android.launcher3/com.android.launcher3.Launcher=桌面窗口名
+StatusBar=状态栏窗口名
+HWC_FRAMEBUFFER_TARGET=硬件合成层名
+
